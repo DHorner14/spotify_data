@@ -9,9 +9,15 @@ CONFIG = {
     'columnC-name': 'artist' # artist
 } # Title this to match your header. Case sensitive.
 
-WRAP = "" # Insert Google Sheet link between quotes
+WRAP_LINKS = [
+    "https://docs.google.com/spreadsheets/d/1oJX1-uI1qv2qyhgIUWnbemtJK3HUDMWPjvxxO5-gQaE/edit?gid=0#gid=0",
+    "https://docs.google.com/spreadsheets/d/1_AZFcjQU9PBlvh6CAuMMhULD8q_mGZ68xAF9OwHSfVU/edit?gid=0#gid=0",
+    "https://docs.google.com/spreadsheets/d/1Gl4VepIvtB8s8zvP3Q29_8kX4JIbLoHqWaEJGO9AaDs/edit?gid=0#gid=0",
+    "https://docs.google.com/spreadsheets/d/1O5BrMizv1lZvjD7h6tobX5FlnlcLImifxyaLnGkGjn4/edit?gid=0#gid=0"
+    
+] # Insert Google Sheet links inside the list
 
-if WRAP == "" or WRAP is None:
+if not WRAP_LINKS:
     print("WRAP value not defined. Please configure the value to continue.")
     exit()
 
@@ -21,26 +27,38 @@ if not CONFIG or CONFIG is None:
 
 current_datetime = datetime.now()
 current_month = current_datetime.strftime("%B") # Automatically computes current month if you want to do it monthly
-current_month = "2024"
-
-google_sheets_link = WRAP
+current_month = "2025"
 
 def convert_google_sheet_url(url):
     # Regular expression to match and capture the necessary part of the URL
     pattern = r'https://docs\.google\.com/spreadsheets/d/([a-zA-Z0-9-_]+)(/edit#gid=(\d+)|/edit.*)?'
 
     # Replace function to construct the new URL for CSV export
-    # If gid is present in the URL, it includes it in the export URL, otherwise, it's omitted
-    replacement = lambda m: f'https://docs.google.com/spreadsheets/d/{m.group(1)}/export?' + (f'gid={m.group(3)}&' if m.group(3) else '') + 'format=csv'  # noqa: E731
+    replacement = lambda m: f'https://docs.google.com/spreadsheets/d/{m.group(1)}/export?' + (f'gid={m.group(3)}&' if m.group(3) else '') + 'format=csv'
 
     # Replace using regex
     new_url = re.sub(pattern, replacement, url)
 
     return new_url
 
-pandas_url = convert_google_sheet_url(google_sheets_link)
+# Cargar datos desde los dos Google Sheets
+dataframes = []
+for link in WRAP_LINKS:
+    try:
+        pandas_url = convert_google_sheet_url(link)
+        df = pd.read_csv(pandas_url)
+        dataframes.append(df)
+    except Exception as e:
+        print(f"Error cargando {link}: {e}")
 
-df = pd.read_csv(pandas_url)
+# Si no se pudieron cargar datos, salir
+if not dataframes:
+    print("Error: No se pudo cargar ninguna hoja de cálculo.")
+    exit()
+
+# Unir los DataFrames en uno solo
+df = pd.concat(dataframes, ignore_index=True)
+
 artist = CONFIG['columnC-name']
 try:
     counts = Counter(df[artist])
@@ -50,12 +68,15 @@ except (KeyError, AttributeError): # Two common errors raised when a problem occ
     print("Please check your google spreadsheet and ensure the headers both exist and match the config.")
     quit()
 
-
 df_date = df[CONFIG['columnA-name']]
+
+# Inicializar wrapped como un DataFrame vacío
+wrapped = pd.DataFrame()
 
 print("\n")
 if df_date.str.contains(f'{current_month}').any():
-    wrapped = (df[df_date.str.contains(f'{current_month}')])
+    wrapped = df[df_date.str.contains(f'{current_month}')]
+
     print(f"JANUARY SONG NUMBER: {len(df[df_date.str.contains('January')])} (ROUGHLY {3*len(df[df_date.str.contains('January')]) / 60} HOURS)")
     print(f"FEBRUARY SONG NUMBER: {len(df[df_date.str.contains('February')])} (ROUGHLY {3*len(df[df_date.str.contains('February')]) / 60} HOURS)")
     print(f"MARCH SONG NUMBER: {len(df[df_date.str.contains('March')])} (ROUGHLY {3*len(df[df_date.str.contains('March')]) / 60} HOURS)")
@@ -77,100 +98,40 @@ counts_2 = Counter(wrapped[wrapped_song])
 most_popular_artist = dict()
 most_popular_song = dict()
 
-print(f"I LISTENED TO {len(counts_1.items())} DIFFERENT ARTISTS IN 2024\n")
+print(f"I LISTENED TO {len(counts_1.items())} DIFFERENT ARTISTS IN 2025\n")
 
-print(f"I LISTENED TO {len(wrapped)} SONGS IN 2024 (ROUGHLY {3*len(wrapped)} MINUTES OR {3*len(wrapped) / 60} HOURS OR {3*len(wrapped) / 60 / 60} DAYS) \n")
+print(f"I LISTENED TO {len(wrapped)} SONGS IN 2025 (ROUGHLY {3*len(wrapped)} MINUTES OR {3*len(wrapped) / 60} HOURS OR {3*len(wrapped) / 60 / 24} DAYS) \n")
 
-print(f"I LISTENED TO {len(counts_2.items())} DIFFERENT SONGS IN 2024\n")
+print(f"I LISTENED TO {len(counts_2.items())} DIFFERENT SONGS IN 2025\n")
 
 print("_________________________________________________________\n")
 
 for key, value in counts_1.items():
-    if value >= 2: # Looks at how many artists you've listened to more than ten times
+    if value >= 2:
         most_popular_artist[key] = value
 
 for key, value in counts_2.items():
-    if value >= 2: # Looks at how many songs you've listened to more than fifteen times
+    if value >= 2:
         most_popular_song[key] = value
-
 
 most_popular_artist = (dict(sorted(most_popular_artist.items(), key=lambda x:x[1], reverse = True)))
 most_popular_song = (dict(sorted(most_popular_song.items(), key=lambda x:x[1], reverse = True)))
 
-keys_list_artist = list(most_popular_artist.keys())
-values_list_artist = list(most_popular_artist.values())
+print("MY TOP TEN ARTISTS ON SPOTIFY OF 2025")
+for i, (artist, count) in enumerate(most_popular_artist.items()):
+    if i < 10:
+        print(count, artist)
 
-#print(f"ARTISTS WITH MORE THAN 10 PLAYS IN {current_month}:\n")
-
-print("MY TOP TEN ARTISTS ON SPOTIFY OF 2024")
-
-try:
-    for i in range(0, 10): #range(len(keys_list_artist)): # Provides your top ten artists, if you want all artists more >= 10, change range to commented
-        print(values_list_artist[i], keys_list_artist[i])
-except IndexError: # Occurs when number is too high
-    print("IndexError ~ list index out of range. This error will be handled gracefully.\nFalling back to listing minimum amount of artists...")
-    max_range = len(keys_list_artist)
-    if max_range != 0:
-        print(f"Found {max_range} artists. Continuing.")
-        for i in range(0, max_range):
-            print(values_list_artist[i], keys_list_artist[i])
-    else:
-        print("Found 0 artists. Skipping.")
-        print("TIP: Change the value of value in `counts_1.items():` to something within range to continue. (Uppermost block - not the one under this!)")
-
-
-keys_list_song = list(most_popular_song.keys())
-values_list_song = list(most_popular_song.values())
-
-print("_________________________________________________________\n")
-
-#print(f"SONGS WITH MORE THAN 5 PLAYS IN {current_month}:\n")
-print("MY TOP TEN SONGS ON SPOTIFY OF 2024")
-
-try:
-    for i in range(0, 5): #range(len(keys_list_artist)): # Provides your top ten artists, if you want all artists more >= 10, change range to commented
-        print(values_list_song[i], keys_list_song[i])
-except IndexError:
-    print("IndexError ~ list index out of range. This error will be handled gracefully.\nFalling back to listing minimum amount of songs...")
-    max_range = len(keys_list_song)
-    print(f"Max_range: {max_range}")
-    if max_range != 0:
-        print(f"Found {max_range} songs. Continuing.")
-        for i in range(0, max_range):
-            print(values_list_artist[i], keys_list_artist[i])
-    else:
-        print("Found 0 songs. Skipping.")
-        print("TIP: Change the value of value in `counts_1.items():` to something within range to continue. (Uppermost block - not the one under this!)")
-
-for key, value in counts_1.items():
-    if value == 1: # Counts artists you've only played one time
-        most_popular_artist[key] = value
-
-for key, value in counts_2.items():
-    if value == 1: # Counts number of songs only played one time
-        most_popular_song[key] = value
-
-
-most_popular_artist = (dict(sorted(most_popular_artist.items(), key=lambda x:x[1], reverse = True)))
-most_popular_song = (dict(sorted(most_popular_song.items(), key=lambda x:x[1], reverse = True)))
-
-keys_list_artist = list(most_popular_artist.keys())
-values_list_artist = list(most_popular_artist.values())
-
-keys_list_song = list(most_popular_song.keys())
-values_list_song = list(most_popular_song.values())
-
+print("\nMY TOP TEN SONGS ON SPOTIFY OF 2025")
+for i, (song, count) in enumerate(most_popular_song.items()):
+    if i < 10:
+        print(count, song)
 
 print("\n")
 print("_________________________________________________________\n")
 print("\n")
-print(f"I LISTENED TO {len(keys_list_artist)} ARTISTS ONLY ONE TIME IN 2024")
-print("\n")
-print(f"I LISTENED TO {len(keys_list_song)} SONGS ONLY ONE TIME IN 2024")
-print("\n")
-
 
 artist_counts = Counter(wrapped[wrapped_artist])
-count_taylor_swift = artist_counts["Taylor Swift"] # Can change "Taylor Swift" to any artist
-print(f"TAYLOR SWIFT COUNT: {count_taylor_swift}")
+count_taylor_swift = artist_counts.get("Måneskin", 0)  # Cambia "Måneskin" por el artista que quieras
+print(f"Måneskin COUNT: {count_taylor_swift}")
 print("\n")
